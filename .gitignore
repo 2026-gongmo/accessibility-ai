@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# venv
+.venv/
+venv/
+env/
+
+# Model checkpoints (재현 가능하므로 git에 포함하지 않음)
+checkpoints/*
+!checkpoints/.gitkeep
+
+# Pipeline IO
+videos/*
+!videos/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# 사용자 코드/모델 작업 폴더
+models/*
+!models/.gitkeep
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
