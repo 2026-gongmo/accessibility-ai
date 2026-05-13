@@ -90,18 +90,33 @@ python download_models.py
 기본 동작:
 
 - `checkpoints/yolov8n-seg.pt` 다운로드
-- `transformers` HF 캐시에 `Depth-Anything-V2-Small-hf` 미리 받아둠
+- `transformers` HF 캐시에 `Depth-Anything-V2-Metric-Outdoor-Small-hf` 미리 받아둠
+  (단위가 **미터**로 나오는 모델. 도시 보행 도메인 기본값)
 
 옵션:
 
 ```bash
-# HF 캐시 base 모델도
-python download_models.py --depth-hf base
+# 실내(쇼핑몰, 지하철 등) 데이터에 맞춰 Metric Indoor 추가
+python download_models.py --depth-hf metric-indoor-small
+
+# 정밀도가 더 필요하면 Large
+python download_models.py --depth-hf metric-outdoor-large
+
+# 여러 개 한 번에 (콤마 구분)
+python download_models.py --depth-hf metric-outdoor-small,metric-indoor-small
+
+# Relative depth 모델 (단위 없음, 시각화만 필요할 때)
+python download_models.py --depth-hf relative-small
 
 # 원본 repo .pth 파일도 받기 (현 파이프라인은 안 씀, 보존용)
 python download_models.py --depth-pth small
 python download_models.py --depth-pth both
 ```
+
+사용 가능한 키:
+`relative-small`, `relative-base`,
+`metric-outdoor-small`, `metric-outdoor-large`,
+`metric-indoor-small`, `metric-indoor-large`, `none`.
 
 ### 4. inference 실행
 
@@ -117,6 +132,8 @@ python scripts/accessibility_pipeline.py \
 
 - `outputs/overlay.mp4` — 원본 | seg | depth 3분할
 - `--save-sample` 주면 첫 프레임을 `outputs/sample.png`로 저장
+- 콘솔에 `frame0 depth range = (a, b) m` 줄이 찍히면 metric depth 정상 동작
+- depth 패널 좌상단에 `depth: a.aa m - b.bb m` 캡션이 박힘
 
 자주 쓰는 옵션:
 
@@ -125,8 +142,11 @@ python scripts/accessibility_pipeline.py \
 | `--stride N` | N프레임마다 1장 처리 (CPU에서 권장: 5~10) | `1` |
 | `--max-frames K` | 처음 K프레임만 처리 (디버그) | `0` (무제한) |
 | `--device cpu` / `cuda` | 강제 지정 | 자동 |
-| `--depth-model …` | HF 모델 ID 변경 | `depth-anything/Depth-Anything-V2-Small-hf` |
+| `--depth-model …` | HF 모델 ID 변경 | `…Metric-Outdoor-Small-hf` |
 | `--seg-weights …` | YOLO 가중치 경로 | `checkpoints/yolov8n-seg.pt` |
+
+모델 ID 안에 `Metric` 이 들어있으면 단위는 미터, 없으면 임의 스케일이다.
+실내 데이터면 `--depth-model depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf`.
 
 #### 단일 이미지 테스트
 

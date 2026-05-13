@@ -28,7 +28,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from infer_depth import colorize_depth, load_depth_model, run_depth  # noqa: E402
+from infer_depth import (  # noqa: E402
+    DEFAULT_DEPTH_MODEL,
+    colorize_depth,
+    is_metric_model,
+    load_depth_model,
+    run_depth,
+)
 from infer_seg import load_seg_model, run_seg  # noqa: E402
 
 
@@ -60,7 +66,8 @@ def main() -> int:
     )
     p.add_argument(
         "--depth-model",
-        default="depth-anything/Depth-Anything-V2-Small-hf",
+        default=DEFAULT_DEPTH_MODEL,
+        help="HF 모델 ID (기본: Metric Outdoor Small)",
     )
     p.add_argument("--seg-weights", default="checkpoints/yolov8n-seg.pt")
     p.add_argument("--device", default=None)
@@ -72,7 +79,9 @@ def main() -> int:
     args = p.parse_args()
 
     device = pick_device(args.device)
-    print(f"[pipeline] device={device}")
+    metric = is_metric_model(args.depth_model)
+    unit = "m" if metric else "(relative)"
+    print(f"[pipeline] device={device}  depth_unit={unit}  depth_model={args.depth_model}")
 
     out_dir = Path(args.output)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -122,7 +131,7 @@ def main() -> int:
                 continue
 
             depth = run_depth(depth_model, depth_proc, frame, device)
-            depth_color = colorize_depth(depth)
+            depth_color = colorize_depth(depth, annotate_meters=metric)
 
             seg_result = run_seg(seg_model, frame, device)
             seg_vis = seg_result.plot()  # BGR
@@ -130,10 +139,15 @@ def main() -> int:
             panel = make_panel(frame, depth_color, seg_vis)
             writer.write(panel)
 
-            if args.save_sample and processed == 0:
-                sample_path = out_dir / "sample.png"
-                cv2.imwrite(str(sample_path), panel)
-                print(f"[pipeline] sample frame -> {sample_path}")
+            if processed == 0:
+                print(
+                    f"[pipeline] frame0 depth range = "
+                    f"({float(depth.min()):.2f}, {float(depth.max()):.2f}) {unit}"
+                )
+                if args.save_sample:
+                    sample_path = out_dir / "sample.png"
+                    cv2.imwrite(str(sample_path), panel)
+                    print(f"[pipeline] sample frame -> {sample_path}")
 
             processed += 1
             pbar.update(1)

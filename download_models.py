@@ -1,12 +1,16 @@
 """Download pretrained checkpoints used by the pipeline.
 
 기본:
-- yolov8n-seg.pt           -> checkpoints/yolov8n-seg.pt
-- Depth Anything V2 (HF)   -> ~/.cache/huggingface (transformers 캐시)
+- yolov8n-seg.pt                              -> checkpoints/yolov8n-seg.pt
+- Depth Anything V2 Metric Outdoor Small (HF) -> ~/.cache/huggingface
 
 옵션:
-- --depth-pth small|base|both
-  Depth Anything V2 원본 .pth 체크포인트도 checkpoints/ 아래에 받는다.
+- --depth-hf {relative-small,relative-base,
+              metric-outdoor-small,metric-outdoor-large,
+              metric-indoor-small,metric-indoor-large,none}
+  여러 개를 미리 받고 싶으면 콤마로: --depth-hf metric-outdoor-small,metric-indoor-small
+- --depth-pth {small,base,both,none}
+  Depth Anything V2 원본 relative .pth 체크포인트도 checkpoints/ 에 받는다.
   (현재 파이프라인은 transformers 버전만 사용. 원본 repo로 갈아끼울 때 대비)
 """
 
@@ -35,9 +39,15 @@ DEPTH_PTH_URLS = {
 }
 
 HF_DEPTH_REPOS = {
-    "small": "depth-anything/Depth-Anything-V2-Small-hf",
-    "base": "depth-anything/Depth-Anything-V2-Base-hf",
+    "relative-small": "depth-anything/Depth-Anything-V2-Small-hf",
+    "relative-base": "depth-anything/Depth-Anything-V2-Base-hf",
+    "metric-outdoor-small": "depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
+    "metric-outdoor-large": "depth-anything/Depth-Anything-V2-Metric-Outdoor-Large-hf",
+    "metric-indoor-small": "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf",
+    "metric-indoor-large": "depth-anything/Depth-Anything-V2-Metric-Indoor-Large-hf",
 }
+
+DEPTH_HF_CHOICES = list(HF_DEPTH_REPOS.keys()) + ["none"]
 
 
 def _download(url: str, dst: Path) -> None:
@@ -54,9 +64,9 @@ def _download(url: str, dst: Path) -> None:
         raise SystemExit(f"[error] download failed: {e}") from e
 
 
-def _prefetch_hf_depth(size: str) -> None:
+def _prefetch_hf_depth(key: str) -> None:
     """transformers/HF 캐시에 Depth Anything V2 가중치를 미리 받아둔다."""
-    repo = HF_DEPTH_REPOS[size]
+    repo = HF_DEPTH_REPOS[key]
     print(f"[hf] prefetch {repo}")
     try:
         from transformers import AutoImageProcessor, AutoModelForDepthEstimation
@@ -67,19 +77,33 @@ def _prefetch_hf_depth(size: str) -> None:
     AutoModelForDepthEstimation.from_pretrained(repo)
 
 
+def _parse_depth_hf(value: str) -> list[str]:
+    if value == "none":
+        return []
+    keys = [v.strip() for v in value.split(",") if v.strip()]
+    bad = [k for k in keys if k not in HF_DEPTH_REPOS]
+    if bad:
+        raise SystemExit(
+            f"[error] unknown --depth-hf key(s): {bad}. valid: {DEPTH_HF_CHOICES}"
+        )
+    return keys
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pretrained model downloader")
     parser.add_argument(
         "--depth-hf",
-        choices=["small", "base", "both", "none"],
-        default="small",
-        help="HF transformers 캐시에 미리 받아둘 Depth Anything V2 사이즈 (default: small)",
+        default="metric-outdoor-small",
+        help=(
+            "HF transformers 캐시에 미리 받아둘 Depth Anything V2 키 (콤마 구분 다중). "
+            f"선택지: {DEPTH_HF_CHOICES} (default: metric-outdoor-small)"
+        ),
     )
     parser.add_argument(
         "--depth-pth",
         choices=["small", "base", "both", "none"],
         default="none",
-        help="원본 .pth 체크포인트도 checkpoints/ 에 다운로드 (default: none)",
+        help="원본 relative .pth 체크포인트도 checkpoints/ 에 다운로드 (default: none)",
     )
     parser.add_argument(
         "--skip-yolo",
@@ -93,10 +117,8 @@ def main() -> int:
     if not args.skip_yolo:
         _download(YOLO_SEG_URL, CHECKPOINTS_DIR / "yolov8n-seg.pt")
 
-    if args.depth_hf != "none":
-        sizes = ["small", "base"] if args.depth_hf == "both" else [args.depth_hf]
-        for s in sizes:
-            _prefetch_hf_depth(s)
+    for key in _parse_depth_hf(args.depth_hf):
+        _prefetch_hf_depth(key)
 
     if args.depth_pth != "none":
         sizes = ["small", "base"] if args.depth_pth == "both" else [args.depth_pth]
